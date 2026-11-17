@@ -269,15 +269,33 @@ function findDeadline(payload) {
 // ------------------------------------------------------------ turn logic --
 
 async function handleTurn(payload, cfg, commitment) {
-  const { matchId, turn, state } = payload;
-  if (matchId == null || matchId === '') throw Object.assign(new Error('missing matchId'), { status: 400 });
-  if (turn == null || !/^\d+$/.test(String(turn))) throw Object.assign(new Error('missing/invalid turn'), { status: 400 });
+  const body = (payload && typeof payload === 'object') ? payload : {};
+  // The match-push envelope is documented, but practice deliveries have
+  // varied in the wild (nested `data`, `turnNumber`, top-level balances).
+  // Accept the common variants, defaulting balances to 0 like the public
+  // reference build, and log the envelope keys on any remaining 400 so the
+  // failure is diagnosable from the Railway log.
+  const inner = (body.data && typeof body.data === 'object') ? body.data : body;
+  const turnSrc = (inner.turn && typeof inner.turn === 'object') ? inner.turn : inner;
+  const matchId = body.matchId ?? inner.matchId ?? body.match_id ?? body.id ?? null;
+  const turnRaw = body.turn ?? body.turnNumber ?? inner.turn ?? inner.turnNumber ?? turnSrc.turn ?? turnSrc.turnNumber ?? null;
+  const state = body.state ?? inner.state ?? body.gameState ?? inner.gameState ?? body.balances ?? inner.balances ?? turnSrc.state ?? {
+    selfBalance: body.selfBalance ?? inner.selfBalance,
+    opponentBalance: body.opponentBalance ?? inner.opponentBalance,
+  };
+  const fail = (msg) => {
+    console.error('[steal] 400 ' + msg + ' — payload keys: ' + Object.keys(body).join(',') + ' — ' + JSON.stringify(body).slice(0, 500));
+    throw Object.assign(new Error(msg), { status: 400 });
+  };
+  if (matchId == null || matchId === '') fail('missing matchId');
+  if (turnRaw == null || !/^\d+$/.test(String(turnRaw))) fail('missing/invalid turn');
+  const turn = turnRaw;
   if (!state || state.selfBalance == null || state.opponentBalance == null) {
-    throw Object.assign(new Error('missing state balances'), { status: 400 });
+    fail('missing state balances');
   }
   const selfBalance = BigInt(state.selfBalance);
   const opponentBalance = BigInt(state.opponentBalance);
-  if (selfBalance < 0n || opponentBalance < 0n) throw Object.assign(new Error('negative balance'), { status: 400 });
+  if (selfBalance < 0n || opponentBalance < 0n) fail('negative balance');
 
   const deadlineMs = findDeadline(payload);
   if (deadlineMs != null && deadlineMs < Date.now() - 5 * 60 * 1000) {
