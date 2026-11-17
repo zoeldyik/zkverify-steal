@@ -1,0 +1,19 @@
+{
+  "name": "zkverify-steal-vfy",
+  "version": "1.0.0",
+  "description": "zkVerify Agent Games — Steal the VFY agent (Poseidon-committed policy, Groth16 proofs)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "commitment": "node scripts/commitment.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "circomlibjs": "^0.1.7",
+    "js-sha3": "^0.15.0",
+    "snarkjs": "^0.7.6"
+  }
+}
